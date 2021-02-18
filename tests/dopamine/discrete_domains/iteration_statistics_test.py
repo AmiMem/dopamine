@@ -21,13 +21,10 @@ from __future__ import print_function
 
 
 from dopamine.discrete_domains import iteration_statistics
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 
 class IterationStatisticsTest(tf.test.TestCase):
-
-  def setUp(self):
-    pass
 
   def testMissingValue(self):
     statistics = iteration_statistics.IterationStatistics()
@@ -71,4 +68,5 @@ class IterationStatisticsTest(tf.test.TestCase):
     self.assertEqual(my_pi, statistics.data_lists['angles'][0])
 
 if __name__ == '__main__':
+  tf.compat.v1.disable_v2_behavior()
   tf.test.main()

@@ -22,12 +22,13 @@ import random
 
 
 from dopamine.replay_memory import sum_tree
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 
 class SumTreeTest(tf.test.TestCase):
 
   def setUp(self):
+    super(SumTreeTest, self).setUp()
     self._tree = sum_tree.SumTree(capacity=100)
 
   def testNegativeCapacity(self):
@@ -154,4 +155,5 @@ class SumTreeTest(tf.test.TestCase):
       self.assertEqual(self._tree.max_recorded_priority, i)
 
 if __name__ == '__main__':
+  tf.compat.v1.disable_v2_behavior()
   tf.test.main()

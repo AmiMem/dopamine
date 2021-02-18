@@ -42,7 +42,7 @@ from __future__ import print_function
 from dopamine.agents.dqn import dqn_agent
 from dopamine.discrete_domains import atari_lib
 from dopamine.replay_memory import prioritized_replay_buffer
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 import gin.tf
 
@@ -59,6 +59,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
                stack_size=dqn_agent.NATURE_DQN_STACK_SIZE,
                network=atari_lib.RainbowNetwork,
                num_atoms=51,
+               vmin=None,
                vmax=10.,
                gamma=0.99,
                update_horizon=1,
@@ -71,15 +72,15 @@ class RainbowAgent(dqn_agent.DQNAgent):
                epsilon_decay_period=250000,
                replay_scheme='prioritized',
                tf_device='/cpu:*',
-               use_staging=True,
-               optimizer=tf.train.AdamOptimizer(
+               use_staging=False,
+               optimizer=tf.compat.v1.train.AdamOptimizer(
                    learning_rate=0.00025, epsilon=0.0003125),
                summary_writer=None,
                summary_writing_frequency=500):
     """Initializes the agent and constructs the components of its graph.
 
     Args:
-      sess: `tf.Session`, for executing ops.
+      sess: `tf.compat.v1.Session`, for executing ops.
       num_actions: int, number of actions the agent can take at any state.
       observation_shape: tuple of ints or an int. If single int, the observation
         is assumed to be a 2D square.
@@ -92,7 +93,9 @@ class RainbowAgent(dqn_agent.DQNAgent):
         instantiation would have different set of variables. See
         dopamine.discrete_domains.atari_lib.RainbowNetwork as an example.
       num_atoms: int, the number of buckets of the value function distribution.
-      vmax: float, the value distribution support is [-vmax, vmax].
+      vmin: float, the value distribution support is [vmin, vmax]. If None, we
+        set it to be -vmax.
+      vmax: float, the value distribution support is [vmin, vmax].
       gamma: float, discount factor with the usual RL meaning.
       update_horizon: int, horizon at which updates are performed, the 'n' in
         n-step update.
@@ -112,7 +115,8 @@ class RainbowAgent(dqn_agent.DQNAgent):
       tf_device: str, Tensorflow device on which the agent's graph is executed.
       use_staging: bool, when True use a staging area to prefetch the next
         training batch, speeding training up by about 30%.
-      optimizer: `tf.train.Optimizer`, for training the value function.
+      optimizer: `tf.compat.v1.train.Optimizer`, for training the value
+        function.
       summary_writer: SummaryWriter object for outputting training statistics.
         Summary writing disabled if set to None.
       summary_writing_frequency: int, frequency with which summaries will be
@@ -121,7 +125,9 @@ class RainbowAgent(dqn_agent.DQNAgent):
     # We need this because some tools convert round floats into ints.
     vmax = float(vmax)
     self._num_atoms = num_atoms
-    self._support = tf.linspace(-vmax, vmax, num_atoms)
+    # If vmin is not specified, set it to -vmax similar to C51.
+    vmin = vmin if vmin else -vmax
+    self._support = tf.linspace(vmin, vmax, num_atoms)
     self._replay_scheme = replay_scheme
     # TODO(b/110897128): Make agent optimizer attribute private.
     self.optimizer = optimizer
@@ -227,7 +233,7 @@ class RainbowAgent(dqn_agent.DQNAgent):
     # size of next_qt_argmax: 1 x batch_size
     next_qt_argmax = tf.argmax(
         self._replay_next_target_net_outputs.q_values, axis=1)[:, None]
-    batch_indices = tf.range(tf.to_int64(batch_size))[:, None]
+    batch_indices = tf.range(tf.cast(batch_size, tf.int64))[:, None]
     # size of next_qt_argmax: batch_size x 2
     batch_indexed_next_qt_argmax = tf.concat(
         [batch_indices, next_qt_argmax], axis=1)
@@ -286,8 +292,8 @@ class RainbowAgent(dqn_agent.DQNAgent):
 
     with tf.control_dependencies([update_priorities_op]):
       if self.summary_writer is not None:
-        with tf.variable_scope('Losses'):
-          tf.summary.scalar('CrossEntropyLoss', tf.reduce_mean(loss))
+        with tf.compat.v1.variable_scope('Losses'):
+          tf.compat.v1.summary.scalar('CrossEntropyLoss', tf.reduce_mean(loss))
       # Schaul et al. reports a slightly different rule, where 1/N is also
       # exponentiated by beta. Not doing so seems more reasonable, and did not
       # impact performance in our experiments.

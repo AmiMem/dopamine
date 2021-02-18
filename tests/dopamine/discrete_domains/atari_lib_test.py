@@ -26,7 +26,7 @@ from dopamine.discrete_domains import atari_lib
 import gym
 import mock
 import numpy as np
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 FLAGS = flags.FLAGS
 
@@ -148,4 +148,5 @@ class AtariPreprocessingTest(tf.test.TestCase):
     self.assertTrue((observation == 8).all())
 
 if __name__ == '__main__':
+  tf.compat.v1.disable_v2_behavior()
   tf.test.main()

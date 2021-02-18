@@ -31,6 +31,8 @@ from __future__ import print_function
 
 import os
 
+from absl import logging
+
 from dopamine.agents.dqn import dqn_agent
 from dopamine.agents.rainbow import rainbow_agent
 from dopamine.discrete_domains import atari_lib
@@ -42,8 +44,8 @@ from dopamine.utils import bar_plotter
 from dopamine.utils import line_plotter
 import gin
 import numpy as np
-import tensorflow.compat.v1 as tf
-from tensorflow.contrib import slim as contrib_slim
+import tensorflow as tf
+import tf_slim
 
 
 class MyDQNAgent(dqn_agent.DQNAgent):
@@ -70,22 +72,22 @@ class MyDQNAgent(dqn_agent.DQNAgent):
   def reload_checkpoint(self, checkpoint_path, use_legacy_checkpoint=False):
     if use_legacy_checkpoint:
       variables_to_restore = atari_lib.maybe_transform_variable_names(
-          tf.all_variables(), legacy_checkpoint_load=True)
+          tf.compat.v1.global_variables(), legacy_checkpoint_load=True)
     else:
-      global_vars = set([x.name for x in tf.global_variables()])
+      global_vars = set([x.name for x in tf.compat.v1.global_variables()])
       ckpt_vars = [
           '{}:0'.format(name)
           for name, _ in tf.train.list_variables(checkpoint_path)
       ]
       include_vars = list(global_vars.intersection(set(ckpt_vars)))
-      variables_to_restore = contrib_slim.get_variables_to_restore(
+      variables_to_restore = tf_slim.get_variables_to_restore(
           include=include_vars)
     if variables_to_restore:
-      reloader = tf.train.Saver(var_list=variables_to_restore)
+      reloader = tf.compat.v1.train.Saver(var_list=variables_to_restore)
       reloader.restore(self._sess, checkpoint_path)
-      tf.logging.info('Done restoring from %s', checkpoint_path)
+      logging.info('Done restoring from %s', checkpoint_path)
     else:
-      tf.logging.info('Nothing to restore!')
+      logging.info('Nothing to restore!')
 
   def get_q_values(self):
     return self.q_values
@@ -109,22 +111,22 @@ class MyRainbowAgent(rainbow_agent.RainbowAgent):
   def reload_checkpoint(self, checkpoint_path, use_legacy_checkpoint=False):
     if use_legacy_checkpoint:
       variables_to_restore = atari_lib.maybe_transform_variable_names(
-          tf.all_variables(), legacy_checkpoint_load=True)
+          tf.compat.v1.global_variables(), legacy_checkpoint_load=True)
     else:
-      global_vars = set([x.name for x in tf.global_variables()])
+      global_vars = set([x.name for x in tf.compat.v1.global_variables()])
       ckpt_vars = [
           '{}:0'.format(name)
           for name, _ in tf.train.list_variables(checkpoint_path)
       ]
       include_vars = list(global_vars.intersection(set(ckpt_vars)))
-      variables_to_restore = contrib_slim.get_variables_to_restore(
+      variables_to_restore = tf_slim.get_variables_to_restore(
           include=include_vars)
     if variables_to_restore:
-      reloader = tf.train.Saver(var_list=variables_to_restore)
+      reloader = tf.compat.v1.train.Saver(var_list=variables_to_restore)
       reloader.restore(self._sess, checkpoint_path)
-      tf.logging.info('Done restoring from %s', checkpoint_path)
+      logging.info('Done restoring from %s', checkpoint_path)
     else:
-      tf.logging.info('Nothing to restore!')
+      logging.info('Nothing to restore!')
 
   def get_probabilities(self):
     return self._sess.run(tf.squeeze(self._net_outputs.probabilities),
@@ -150,13 +152,13 @@ class MyRunner(run_experiment.Runner):
 
   def _run_one_iteration(self, iteration):
     statistics = iteration_statistics.IterationStatistics()
-    tf.logging.info('Starting iteration %d', iteration)
+    logging.info('Starting iteration %d', iteration)
     _, _ = self._run_eval_phase(statistics)
     return statistics.data_lists
 
   def visualize(self, record_path, num_global_steps=500):
-    if not tf.gfile.Exists(record_path):
-      tf.gfile.MakeDirs(record_path)
+    if not tf.io.gfile.exists(record_path):
+      tf.io.gfile.makedirs(record_path)
     self._agent.eval_mode = True
 
     # Set up the game playback rendering.
@@ -179,6 +181,12 @@ class MyRunner(run_experiment.Runner):
       q_params['xlabel'] = 'Timestep'
       q_params['ylabel'] = 'Q-Value'
       q_params['title'] = 'Q-Values'
+      q_params['get_line_data_fn'] = self._agent.get_q_values
+      q_plot = line_plotter.LinePlotter(parameter_dict=q_params)
+    elif 'Implicit' in self._agent.__class__.__name__:
+      q_params['xlabel'] = 'Timestep'
+      q_params['ylabel'] = 'Quantile Value'
+      q_params['title'] = 'Quantile Values'
       q_params['get_line_data_fn'] = self._agent.get_q_values
       q_plot = line_plotter.LinePlotter(parameter_dict=q_params)
     else:
@@ -235,7 +243,8 @@ def create_runner(base_dir, trained_agent_ckpt_path, agent='dqn',
                   use_legacy_checkpoint)
 
 
-def run(agent, game, num_steps, root_dir, restore_ckpt, use_legacy_checkpoint):
+def run(agent, game, num_steps, root_dir, restore_ckpt,
+        use_legacy_checkpoint=False):
   """Main entrypoint for running and generating visualizations.
 
   Args:
@@ -247,6 +256,7 @@ def run(agent, game, num_steps, root_dir, restore_ckpt, use_legacy_checkpoint):
     use_legacy_checkpoint: bool, whether to restore from a legacy (pre-Keras)
       checkpoint.
   """
+  tf.compat.v1.reset_default_graph()
   config = """
   atari_lib.create_atari_environment.game_name = '{}'
   WrappedReplayBuffer.replay_capacity = 300

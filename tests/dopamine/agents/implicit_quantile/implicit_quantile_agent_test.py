@@ -25,7 +25,7 @@ from dopamine.agents.dqn import dqn_agent
 from dopamine.agents.implicit_quantile import implicit_quantile_agent
 from dopamine.discrete_domains import atari_lib
 import numpy as np
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 
 
 class ImplicitQuantileAgentTest(tf.test.TestCase):
@@ -79,14 +79,14 @@ class ImplicitQuantileAgentTest(tf.test.TestCase):
     # This ensures non-random action choices (since epsilon_eval = 0.0) and
     # skips the train_step.
     agent.eval_mode = True
-    sess.run(tf.global_variables_initializer())
+    sess.run(tf.compat.v1.global_variables_initializer())
     return agent
 
   def testCreateAgentWithDefaults(self):
     # Verifies that we can create and train an agent with the default values.
     with self.test_session(use_gpu=False) as sess:
       agent = implicit_quantile_agent.ImplicitQuantileAgent(sess, num_actions=4)
-      sess.run(tf.global_variables_initializer())
+      sess.run(tf.compat.v1.global_variables_initializer())
       observation = np.ones([84, 84, 1])
       agent.begin_episode(observation)
       agent.step(reward=1, observation=observation)
@@ -174,4 +174,5 @@ class ImplicitQuantileAgentTest(tf.test.TestCase):
 
 
 if __name__ == '__main__':
+  tf.compat.v1.disable_v2_behavior()
   tf.test.main()
